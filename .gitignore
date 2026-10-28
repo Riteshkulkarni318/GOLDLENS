@@ -12,6 +12,7 @@ data/raw/*.csv
 __pycache__/
 .venv/
 *.xls
+!tests/fixtures/*.xls
 peek_output.txt
 inspect_summary.*
 contract_summary.txt

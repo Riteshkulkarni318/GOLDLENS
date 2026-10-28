@@ -1,7 +1,7 @@
 # GoldLens progress
 
-**Current step:** S12 complete  
-**Last task summary:** S12 adds submission-ready documentation, architecture and deployment material, a timed demo script, and GitHub Actions workflows for tests and scheduled local-data rebuilds.  
+**Current step:** S13 complete  
+**Last task summary:** S13 tracks the HTML-in-XLS date-density fixture so a clean clone can run the ingest validation suite.  
 **Last agent/LLM used:** Codex
 
 ## Step status
@@ -21,6 +21,7 @@
 | S10 Quiet alerts | done (tests green) | `alerts/quiet.py` and `alerts/run.py`; local-only watches from the latest materialized, liquid, past-only z-scores are stored in `quiet_alerts`. |
 | S11 Dashboard | done (tests green) | `app/streamlit_app.py`; cached local DuckDB/raw-data dashboard with expiry-keyed spread/bands/alerts, calendar, costs/backtest, verdict, and data quality. |
 | S12 Docs, CI, demo, submission | done (tests green) | Expanded `README.md`; `docs/architecture.md`, `docs/deployment.md`, and `docs/demo_script.md`; `.github/workflows/ci.yml` and `daily_ingest.yml`. |
+| S13 Test-fixture packaging | done (tests green) | Exempted `tests/fixtures/*.xls` from the report-file ignore rule and added the sparse-date-density fixture required by the ingestion test. |
 
 ## Data facts
 
@@ -123,7 +124,7 @@
 
 ## Next step
 
-Submission readiness: push the S12 commit, let CI run, verify TODO(verify) inputs against current MCX and broker material, and deploy only after the real-data DuckDB tables have been rebuilt from `data/raw/`.
+Submission readiness: push the S13 fixture-packaging commit, let CI run, verify TODO(verify) inputs against current MCX and broker material, and deploy only after the real-data DuckDB tables have been rebuilt from `data/raw/`.
 
 ## UI polish baseline and completion (2026-10-28)
 
