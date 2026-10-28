@@ -17,3 +17,6 @@ peek_output.txt
 inspect_summary.*
 contract_summary.txt
 app/*_backup.py
+# Data included with the deployed demo
+!data/goldlens.duckdb
+!data/raw/*.xls
