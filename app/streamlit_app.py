@@ -36,6 +36,9 @@ PAIR_OPTIONS = [
     ("GOLDGUINEA", "GOLDPETAL"),
 ]
 
+# Columns that _pair_frame and _spread_chart require to be present in signals/alerts
+_PAIR_REQUIRED_COLS = {"left_symbol", "right_symbol"}
+
 
 @st.cache_data(show_spinner="Loading local DuckDB data…")
 def load_table(table_name: str) -> pd.DataFrame:
@@ -58,8 +61,22 @@ def load_data_quality() -> dict[str, object]:
     return asdict(summary)
 
 
+def _has_pair_cols(df: pd.DataFrame) -> bool:
+    """Return True only when df is non-empty and has the required pair columns."""
+    return not df.empty and _PAIR_REQUIRED_COLS.issubset(df.columns)
+
+
 def _pair_frame(signals: pd.DataFrame, first: str, second: str) -> pd.DataFrame:
-    """Orient an unordered selected pair without joining or stitching expiries."""
+    """Orient an unordered selected pair without joining or stitching expiries.
+
+    Returns an empty DataFrame (safely) when *signals* is empty or is missing
+    the expected pair columns — which happens when the DuckDB table has not yet
+    been materialised.
+    """
+    # ── Guard: table not yet materialised or columns differ ──────────────────
+    if not _has_pair_cols(signals):
+        return pd.DataFrame()
+
     direct = signals[(signals["left_symbol"] == first) & (signals["right_symbol"] == second)].copy()
     if not direct.empty:
         return direct
@@ -78,8 +95,17 @@ def _pair_frame(signals: pd.DataFrame, first: str, second: str) -> pd.DataFrame:
 
 def _spread_chart(signals: pd.DataFrame, alerts: pd.DataFrame, first: str, second: str) -> go.Figure:
     """Plot exact-expiry spread series and their own prior-only normal bands."""
-    selected = _pair_frame(signals, first, second)
     figure = go.Figure()
+
+    # ── Guard: signals table not yet materialised ────────────────────────────
+    if not _has_pair_cols(signals):
+        figure.add_annotation(
+            text="Spread signals table not yet materialised — run the pipeline first.",
+            showarrow=False,
+        )
+        return figure
+
+    selected = _pair_frame(signals, first, second)
     if selected.empty:
         figure.add_annotation(text="No real spread rows for this pair", showarrow=False)
         return figure
@@ -95,10 +121,13 @@ def _spread_chart(signals: pd.DataFrame, alerts: pd.DataFrame, first: str, secon
         figure.add_trace(go.Scatter(x=series["Date"], y=upper, mode="lines", line={"width": 0}, showlegend=False, hoverinfo="skip"))
         figure.add_trace(go.Scatter(x=series["Date"], y=lower, mode="lines", line={"width": 0}, fill="tonexty", fillcolor="rgba(100, 116, 139, 0.12)", name=f"normal band: {label}", legendgroup=label, hoverinfo="skip"))
         figure.add_trace(go.Scatter(x=series["Date"], y=series["spread_bps"], mode="lines", name=label, legendgroup=label))
-    if not alerts.empty:
+
+    # ── Guard: alerts table not yet materialised ─────────────────────────────
+    if _has_pair_cols(alerts):
         marked = _pair_frame(alerts, first, second)
         if not marked.empty:
             figure.add_trace(go.Scatter(x=marked["alert_date"], y=marked["spread_bps"], mode="markers", marker={"color": "#dc2626", "size": 10, "symbol": "diamond"}, name="quiet alert"))
+
     figure.update_layout(**PLOTLY_LAYOUT)
     figure.update_layout(title=f"{first} − {second}: normalized spread (exact expiry pairs; not stitched)", xaxis_title="Trade date", yaxis_title="Spread (bps)", legend_title="Expiry pair")
     return figure
@@ -215,9 +244,22 @@ def main() -> None:
         first, second = pair_label.split(" vs ")
         st.plotly_chart(_spread_chart(signals, alerts, first, second), width="stretch")
         left, right = st.columns(2)
-        current_alerts = alerts[(alerts["left_symbol"].isin([first, second])) & (alerts["right_symbol"].isin([first, second]))] if not alerts.empty else alerts
+
+        # ── Guard: alerts and signals may not be materialised yet ────────────
+        current_alerts = (
+            alerts[
+                (alerts["left_symbol"].isin([first, second]))
+                & (alerts["right_symbol"].isin([first, second]))
+            ]
+            if _has_pair_cols(alerts)
+            else pd.DataFrame()
+        )
         latest = _pair_frame(signals, first, second)
-        latest = latest[pd.to_datetime(latest["Date"]) == pd.to_datetime(latest["Date"]).max()] if not latest.empty else latest
+        latest = (
+            latest[pd.to_datetime(latest["Date"]) == pd.to_datetime(latest["Date"]).max()]
+            if not latest.empty
+            else latest
+        )
         raw_suppressed = max(len(latest) - len(current_alerts), 0)
         is_alert = not current_alerts.empty
         with left:
